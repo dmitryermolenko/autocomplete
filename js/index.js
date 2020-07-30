@@ -27,7 +27,7 @@ const getResource = async (value) => {
 
 
 /*удалить элементы автокомплита*/
-const removeAutocompleteItem = (container) => {
+const removeAutocompleteItems = (container) => {
   let length = container.children.length;
     for(let i = length; i != 0; i--) {
       container.removeChild(container.children[i - 1]);
@@ -36,30 +36,19 @@ const removeAutocompleteItem = (container) => {
 
 const debounce = (fn, debounceTime) => {
   let timeoutID;
+
   
   return function(...args) {
       if (timeoutID) {
           clearTimeout(timeoutID);
       }
-      
-      timeoutID = setTimeout(() => {
-         fn.apply(null, args ).then((items) => {
-           /*очистить автокомплит предыдущего запроса, 
-            если результат, пришедший с сервера === [],
-            или поле ввода пустое или количество запросов превышено*/
-            if (!items.length) {
-             removeAutocompleteItem(autocompleteList);
-             return;
-           }
 
-          const shownItems = items.slice(0, SHOWN__ITEMS_NUMBER);
-
-          if (searchInput.value) {
-            showAutocompleteList(shownItems);
-          }
-        });
-         
-      }, debounceTime);
+      return new Promise(resolve => {
+        timeoutID = setTimeout(
+          () => resolve(fn.apply(null, args)),
+          debounceTime
+        );
+      });
   };
 };
 
@@ -68,11 +57,6 @@ const debounceData = debounce(getResource, 200);
 
 //отобразить автокомлит
 const showAutocompleteList = (data) => {
-  /*очистить автокомплит предыдущего запроса*/
-  if (autocompleteList.children.length) {
-    removeAutocompleteItem(autocompleteList);
-  }
-  
   for (let i = 0; i < data.length; i++) {
     const {name} = data[i];
 
@@ -81,7 +65,7 @@ const showAutocompleteList = (data) => {
 
   
     if (oldItem) {
-      const newItem = createElement(createRepositoryCardTemplate(data[i]));
+      const newItem = createDivElement(createRepositoryCardTemplate(data[i]));
       repositoryList.replaceChild(newItem, oldItem);
 
       const repositoryItem = repositoryList.querySelector(`#${name}`);
@@ -93,7 +77,7 @@ const showAutocompleteList = (data) => {
       });
     }
 
-    render(autocompleteList, createElement(createAutocompleteItem(name, isDataSaved)), "afterbegin");
+    render(autocompleteList, createDivElement(createAutocompleteItem(name, isDataSaved)), "afterbegin");
 
     const button = document.querySelector(".autocomplete-item").querySelector(".autocomplete-button");
 
@@ -102,7 +86,7 @@ const showAutocompleteList = (data) => {
       savedDataId.push(data[i].id);
       render(
         repositoryList,
-        createElement(createRepositoryCardTemplate(data[i])),
+        createDivElement(createRepositoryCardTemplate(data[i])),
         "beforeend"
       );
 
@@ -158,7 +142,7 @@ const render = (container, element, place) => {
 };
 
 //создать DOM-узел
-const createElement = (template) => {
+const createDivElement = (template) => {
   const newElement = document.createElement(`div`);
   newElement.innerHTML = template;
 
@@ -167,5 +151,17 @@ const createElement = (template) => {
 
 
 searchInput.addEventListener("input", () => {
-  debounceData(searchInput.value);
+  debounceData(searchInput.value)
+  .then((items) => {
+    /*очистить автокомплит предыдущего запроса*/
+    if (autocompleteList.children.length) {
+     removeAutocompleteItems(autocompleteList);
+   }
+
+   const shownItems = items.slice(0, SHOWN__ITEMS_NUMBER);
+
+   if (searchInput.value) {
+     showAutocompleteList(shownItems);
+   }
+ });
 });
